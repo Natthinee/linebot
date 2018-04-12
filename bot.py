@@ -1,36 +1,45 @@
-from flask import Flask, request
-import json
-import requests
+from flask import Flask, request, abort
+
+from linebot import (
+    LineBotApi, WebhookHandler
+)
+from linebot.exceptions import (
+    InvalidSignatureError
+)
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+)
+
 app = Flask(__name__)
-@app.route(‘/’)
-def index ():
-return “Hello World!”
-@app.route(‘/callback’, methods=[‘POST’])
-def callback ():
-json_line = request.get_json ()
-json_line = json.dumps(json_line)
-decoded = json.loads(json_line)
-user = decoded[“events”] [0] [‘replyToken’]
-print (“ผู้ใช้：”, user)
-sendText(user,’สวัสดี’)
-return ‘’,200
-def sendText(user, text):
-LINE_API = ‘https://api.line.me/v2/bot/message/reply'
-Authorization = ‘7WCR1g4vUFAz1alqIcB7fM39A1rEymn5Q6HBm8UtUDNKjXaLggm1IBzxbhCf23whER9ml7RAmTUjElHzAPzBVtVwzfXjin25UzjsJKz75Tf2Uj2fA3n0F8vNHslZISji1Zq5ND2VgHBLJv+eRpPFvgdB04t89/1O/w1cDnyilFU=’
-# ใส่ ENTER_ACCESS_TOKEN เข้าไป
-headers = {
-‘Content-Type’: ‘application/json; charset=UTF-8’,
-‘Authorization’:Authorization
-}
-data = json.dumps({
-“replyToken”:user,
-“messages”: [{
-“type”:”text”,
-“text”:text
-}]
-})
 
-r = requests.post (LINE_API, headers=headers, data=data) # ส่งข้อมูล
+line_bot_api = LineBotApi('7WCR1g4vUFAz1alqIcB7fM39A1rEymn5Q6HBm8UtUDNKjXaLggm1IBzxbhCf23whER9ml7RAmTUjElHzAPzBVtVwzfXjin25UzjsJKz75Tf2Uj2fA3n0F8vNHslZISji1Zq5ND2VgHBLJv+eRpPFvgdB04t89/1O/w1cDnyilFU=')
+handler = WebhookHandler('058e9407061ba0bf6cef25392fcd34df')
 
-if __name__ == ‘__main__’:
-app.run(debug=True)
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    # get X-Line-Signature header value
+    signature = request.headers['X-Line-Signature']
+
+    # get request body as text
+    body = request.get_data(as_text=True)
+    app.logger.info("Request body: " + body)
+
+    # handle webhook body
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+
+    return 'OK'
+
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=event.message.text))
+
+
+if __name__ == "__main__":
+    app.run()
